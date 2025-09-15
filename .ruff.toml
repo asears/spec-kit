@@ -6,4 +6,4 @@ output-format = "concise"
 
 [lint]
 select = ["ALL"]
-ignore = ["COM812", "FURB", "BLE", "FBT"]
+ignore = ["COM812", "FURB", "BLE", "FBT", "D203", "D213"]

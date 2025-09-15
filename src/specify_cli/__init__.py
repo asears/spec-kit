@@ -23,31 +23,31 @@ Or install globally:
 """
 
 import os
+import shutil
+import socket
+import ssl
 import subprocess
 import sys
-import zipfile
 import tempfile
-import shutil
-import json
+import zipfile
 from pathlib import Path
-from typing import Optional, Tuple
 
-import typer
 import httpx
-from rich.console import Console
-from rich.panel import Panel
-from rich.progress import Progress, SpinnerColumn, TextColumn
-from rich.text import Text
-from rich.live import Live
-from rich.align import Align
-from rich.table import Table
-from rich.tree import Tree
-from typer.core import TyperGroup
+import psutil
 
 # For cross-platform keyboard input
 import readchar
-import ssl
 import truststore
+import typer
+from rich.align import Align
+from rich.console import Console
+from rich.live import Live
+from rich.panel import Panel
+from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.table import Table
+from rich.text import Text
+from rich.tree import Tree
+from typer.core import TyperGroup
 
 ssl_context = truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
 client = httpx.Client(verify=ssl_context)
@@ -100,9 +100,7 @@ class StepTracker:
 
     def add(self, key: str, label: str):
         if key not in [s["key"] for s in self.steps]:
-            self.steps.append(
-                {"key": key, "label": label, "status": "pending", "detail": ""}
-            )
+            self.steps.append({"key": key, "label": label, "status": "pending", "detail": ""})
             self._maybe_refresh()
 
     def start(self, key: str, detail: str = ""):
@@ -126,9 +124,7 @@ class StepTracker:
                 self._maybe_refresh()
                 return
         # If not present, add it
-        self.steps.append(
-            {"key": key, "label": key, "status": status, "detail": detail}
-        )
+        self.steps.append({"key": key, "label": key, "status": status, "detail": detail})
         self._maybe_refresh()
 
     def _maybe_refresh(self):
@@ -162,9 +158,7 @@ class StepTracker:
             if status == "pending":
                 # Entire line light gray (pending)
                 if detail_text:
-                    line = (
-                        f"{symbol} [bright_black]{label} ({detail_text})[/bright_black]"
-                    )
+                    line = f"{symbol} [bright_black]{label} ({detail_text})[/bright_black]"
                 else:
                     line = f"{symbol} [bright_black]{label}[/bright_black]"
             else:
@@ -210,9 +204,7 @@ def get_key():
     return key
 
 
-def select_with_arrows(
-    options: dict, prompt_text: str = "Select an option", default_key: str = None
-) -> str:
+def select_with_arrows(options: dict, prompt_text: str = "Select an option", default_key: str = None) -> str:
     """
     Interactive selection using arrow keys with Rich Live display.
 
@@ -245,9 +237,7 @@ def select_with_arrows(
                 table.add_row(" ", f"[white]{key}: {options[key]}[/white]")
 
         table.add_row("", "")
-        table.add_row(
-            "", "[dim]Use ↑/↓ to navigate, Enter to select, Esc to cancel[/dim]"
-        )
+        table.add_row("", "[dim]Use ↑/↓ to navigate, Enter to select, Esc to cancel[/dim]")
 
         return Panel(
             table,
@@ -338,15 +328,9 @@ def callback(ctx: typer.Context):
     """Show banner when no subcommand is provided."""
     # Show banner only when no subcommand and no help flag
     # (help is handled by BannerGroup)
-    if (
-        ctx.invoked_subcommand is None
-        and "--help" not in sys.argv
-        and "-h" not in sys.argv
-    ):
+    if ctx.invoked_subcommand is None and "--help" not in sys.argv and "-h" not in sys.argv:
         show_banner()
-        console.print(
-            Align.center("[dim]Run 'specify --help' for usage information[/dim]")
-        )
+        console.print(Align.center("[dim]Run 'specify --help' for usage information[/dim]"))
         console.print()
 
 
@@ -355,13 +339,11 @@ def run_command(
     check_return: bool = True,
     capture: bool = False,
     shell: bool = False,
-) -> Optional[str]:
+) -> str | None:
     """Run a shell command and optionally capture output."""
     try:
         if capture:
-            result = subprocess.run(
-                cmd, check=check_return, capture_output=True, text=True, shell=shell
-            )
+            result = subprocess.run(cmd, check=check_return, capture_output=True, text=True, shell=shell)
             return result.stdout.strip()
         else:
             subprocess.run(cmd, check=check_return, shell=shell)
@@ -464,7 +446,11 @@ def download_template_from_github(
     show_progress: bool = True,
     client: httpx.Client = None,
     debug: bool = False,
-) -> Tuple[Path, dict]:
+) -> tuple[Path, dict]:
+    repo_owner = "github"
+    repo_name = "spec-kit"
+    if debug:
+        list_open_ports()
     repo_owner = "github"
     repo_name = "spec-kit"
     if client is None:
@@ -476,6 +462,8 @@ def download_template_from_github(
 
     try:
         response = client.get(api_url, timeout=30, follow_redirects=True)
+        if debug:
+            list_open_ports()
         status = response.status_code
         if status != 200:
             msg = f"GitHub API returned {status} for {api_url}"
@@ -485,9 +473,7 @@ def download_template_from_github(
         try:
             release_data = response.json()
         except ValueError as je:
-            raise RuntimeError(
-                f"Failed to parse release JSON: {je}\nRaw (truncated 400): {response.text[:400]}"
-            )
+            raise RuntimeError(f"Failed to parse release JSON: {je}\nRaw (truncated 400): {response.text[:400]}")
     except Exception as e:
         console.print(f"[red]Error fetching release information[/red]")
         console.print(Panel(str(e), title="Fetch Error", border_style="red"))
@@ -496,15 +482,11 @@ def download_template_from_github(
     # Find the template asset for the specified AI assistant
     pattern = f"spec-kit-template-{ai_assistant}-{script_type}"
     matching_assets = [
-        asset
-        for asset in release_data.get("assets", [])
-        if pattern in asset["name"] and asset["name"].endswith(".zip")
+        asset for asset in release_data.get("assets", []) if pattern in asset["name"] and asset["name"].endswith(".zip")
     ]
 
     if not matching_assets:
-        console.print(
-            f"[red]No matching release asset found[/red] for pattern: [bold]{pattern}[/bold]"
-        )
+        console.print(f"[red]No matching release asset found[/red] for pattern: [bold]{pattern}[/bold]")
         asset_names = [a.get("name", "?") for a in release_data.get("assets", [])]
         console.print(
             Panel(
@@ -532,9 +514,9 @@ def download_template_from_github(
         console.print(f"[cyan]Downloading template...[/cyan]")
 
     try:
-        with client.stream(
-            "GET", download_url, timeout=60, follow_redirects=True
-        ) as response:
+        with client.stream("GET", download_url, timeout=60, follow_redirects=True) as response:
+            if debug:
+                list_open_ports()
             if response.status_code != 200:
                 body_sample = response.text[:400]
                 raise RuntimeError(
@@ -609,10 +591,10 @@ def download_and_extract_template(
             client=client,
             debug=debug,
         )
+        if debug:
+            list_open_ports()
         if tracker:
-            tracker.complete(
-                "fetch", f"release {meta['release']} ({meta['size']:,} bytes)"
-            )
+            tracker.complete("fetch", f"release {meta['release']} ({meta['size']:,} bytes)")
             tracker.add("download", "Download template")
             tracker.complete("download", meta["filename"])
     except Exception as e:
@@ -653,13 +635,9 @@ def download_and_extract_template(
                     extracted_items = list(temp_path.iterdir())
                     if tracker:
                         tracker.start("extracted-summary")
-                        tracker.complete(
-                            "extracted-summary", f"temp {len(extracted_items)} items"
-                        )
+                        tracker.complete("extracted-summary", f"temp {len(extracted_items)} items")
                     elif verbose:
-                        console.print(
-                            f"[cyan]Extracted {len(extracted_items)} items to temp location[/cyan]"
-                        )
+                        console.print(f"[cyan]Extracted {len(extracted_items)} items to temp location[/cyan]")
 
                     # Handle GitHub-style ZIP with a single root directory
                     source_dir = temp_path
@@ -669,9 +647,7 @@ def download_and_extract_template(
                             tracker.add("flatten", "Flatten nested directory")
                             tracker.complete("flatten")
                         elif verbose:
-                            console.print(
-                                f"[cyan]Found nested directory structure[/cyan]"
-                            )
+                            console.print(f"[cyan]Found nested directory structure[/cyan]")
 
                     # Copy contents to current directory
                     for item in source_dir.iterdir():
@@ -679,30 +655,22 @@ def download_and_extract_template(
                         if item.is_dir():
                             if dest_path.exists():
                                 if verbose and not tracker:
-                                    console.print(
-                                        f"[yellow]Merging directory:[/yellow] {item.name}"
-                                    )
+                                    console.print(f"[yellow]Merging directory:[/yellow] {item.name}")
                                 # Recursively copy directory contents
                                 for sub_item in item.rglob("*"):
                                     if sub_item.is_file():
                                         rel_path = sub_item.relative_to(item)
                                         dest_file = dest_path / rel_path
-                                        dest_file.parent.mkdir(
-                                            parents=True, exist_ok=True
-                                        )
+                                        dest_file.parent.mkdir(parents=True, exist_ok=True)
                                         shutil.copy2(sub_item, dest_file)
                             else:
                                 shutil.copytree(item, dest_path)
                         else:
                             if dest_path.exists() and verbose and not tracker:
-                                console.print(
-                                    f"[yellow]Overwriting file:[/yellow] {item.name}"
-                                )
+                                console.print(f"[yellow]Overwriting file:[/yellow] {item.name}")
                             shutil.copy2(item, dest_path)
                     if verbose and not tracker:
-                        console.print(
-                            f"[cyan]Template files merged into current directory[/cyan]"
-                        )
+                        console.print(f"[cyan]Template files merged into current directory[/cyan]")
             else:
                 # Extract directly to project directory (original behavior)
                 zip_ref.extractall(project_path)
@@ -711,17 +679,11 @@ def download_and_extract_template(
                 extracted_items = list(project_path.iterdir())
                 if tracker:
                     tracker.start("extracted-summary")
-                    tracker.complete(
-                        "extracted-summary", f"{len(extracted_items)} top-level items"
-                    )
+                    tracker.complete("extracted-summary", f"{len(extracted_items)} top-level items")
                 elif verbose:
-                    console.print(
-                        f"[cyan]Extracted {len(extracted_items)} items to {project_path}:[/cyan]"
-                    )
+                    console.print(f"[cyan]Extracted {len(extracted_items)} items to {project_path}:[/cyan]")
                     for item in extracted_items:
-                        console.print(
-                            f"  - {item.name} ({'dir' if item.is_dir() else 'file'})"
-                        )
+                        console.print(f"  - {item.name} ({'dir' if item.is_dir() else 'file'})")
 
                 # Handle GitHub-style ZIP with a single root directory
                 if len(extracted_items) == 1 and extracted_items[0].is_dir():
@@ -738,9 +700,7 @@ def download_and_extract_template(
                         tracker.add("flatten", "Flatten nested directory")
                         tracker.complete("flatten")
                     elif verbose:
-                        console.print(
-                            f"[cyan]Flattened nested directory structure[/cyan]"
-                        )
+                        console.print(f"[cyan]Flattened nested directory structure[/cyan]")
 
     except Exception as e:
         if tracker:
@@ -749,9 +709,7 @@ def download_and_extract_template(
             if verbose:
                 console.print(f"[red]Error extracting template:[/red] {e}")
                 if debug:
-                    console.print(
-                        Panel(str(e), title="Extraction Error", border_style="red")
-                    )
+                    console.print(Panel(str(e), title="Extraction Error", border_style="red"))
         # Clean up project directory if created and not current directory
         if not is_current_dir and project_path.exists():
             shutil.rmtree(project_path)
@@ -773,9 +731,7 @@ def download_and_extract_template(
     return project_path
 
 
-def ensure_executable_scripts(
-    project_path: Path, tracker: StepTracker | None = None
-) -> None:
+def ensure_executable_scripts(project_path: Path, tracker: StepTracker | None = None) -> None:
     """Ensure POSIX .sh scripts under .specify/scripts (recursively) have execute bits (no-op on Windows)."""
     if os.name == "nt":
         return  # Windows: skip silently
@@ -812,16 +768,12 @@ def ensure_executable_scripts(
         except Exception as e:
             failures.append(f"{script.relative_to(scripts_root)}: {e}")
     if tracker:
-        detail = f"{updated} updated" + (
-            f", {len(failures)} failed" if failures else ""
-        )
+        detail = f"{updated} updated" + (f", {len(failures)} failed" if failures else "")
         tracker.add("chmod", "Set script permissions recursively")
         (tracker.error if failures else tracker.complete)("chmod", detail)
     else:
         if updated:
-            console.print(
-                f"[cyan]Updated execute permissions on {updated} script(s) recursively[/cyan]"
-            )
+            console.print(f"[cyan]Updated execute permissions on {updated} script(s) recursively[/cyan]")
         if failures:
             console.print("[yellow]Some scripts could not be updated:[/yellow]")
             for f in failures:
@@ -830,31 +782,21 @@ def ensure_executable_scripts(
 
 @app.command()
 def init(
-    project_name: str = typer.Argument(
-        None, help="Name for your new project directory (optional if using --here)"
-    ),
-    ai_assistant: str = typer.Option(
-        None, "--ai", help="AI assistant to use: claude, gemini, copilot, or cursor"
-    ),
-    script_type: str = typer.Option(
-        None, "--script", help="Script type to use: sh or ps"
-    ),
+    project_name: str = typer.Argument(None, help="Name for your new project directory (optional if using --here)"),
+    ai_assistant: str = typer.Option(None, "--ai", help="AI assistant to use: claude, gemini, copilot, or cursor"),
+    script_type: str = typer.Option(None, "--script", help="Script type to use: sh or ps"),
     ignore_agent_tools: bool = typer.Option(
         False,
         "--ignore-agent-tools",
         help="Skip checks for AI agent tools like Claude Code",
     ),
-    no_git: bool = typer.Option(
-        False, "--no-git", help="Skip git repository initialization"
-    ),
+    no_git: bool = typer.Option(False, "--no-git", help="Skip git repository initialization"),
     here: bool = typer.Option(
         False,
         "--here",
         help="Initialize project in the current directory instead of creating a new one",
     ),
-    skip_tls: bool = typer.Option(
-        False, "--skip-tls", help="Skip SSL/TLS verification (not recommended)"
-    ),
+    skip_tls: bool = typer.Option(False, "--skip-tls", help="Skip SSL/TLS verification (not recommended)"),
     debug: bool = typer.Option(
         False,
         "--debug",
@@ -887,15 +829,11 @@ def init(
 
     # Validate arguments
     if here and project_name:
-        console.print(
-            "[red]Error:[/red] Cannot specify both project name and --here flag"
-        )
+        console.print("[red]Error:[/red] Cannot specify both project name and --here flag")
         raise typer.Exit(1)
 
     if not here and not project_name:
-        console.print(
-            "[red]Error:[/red] Must specify either a project name or use --here flag"
-        )
+        console.print("[red]Error:[/red] Must specify either a project name or use --here flag")
         raise typer.Exit(1)
 
     # Determine project directory
@@ -906,9 +844,7 @@ def init(
         # Check if current directory has any files
         existing_items = list(project_path.iterdir())
         if existing_items:
-            console.print(
-                f"[yellow]Warning:[/yellow] Current directory is not empty ({len(existing_items)} items)"
-            )
+            console.print(f"[yellow]Warning:[/yellow] Current directory is not empty ({len(existing_items)} items)")
             console.print(
                 "[yellow]Template files will be merged with existing content and may overwrite existing files[/yellow]"
             )
@@ -922,9 +858,7 @@ def init(
         project_path = Path(project_name).resolve()
         # Check if project directory already exists
         if project_path.exists():
-            console.print(
-                f"[red]Error:[/red] Directory '{project_name}' already exists"
-            )
+            console.print(f"[red]Error:[/red] Directory '{project_name}' already exists")
             raise typer.Exit(1)
 
     console.print(
@@ -941,9 +875,7 @@ def init(
     if not no_git:
         git_available = check_tool("git", "https://git-scm.com/downloads")
         if not git_available:
-            console.print(
-                "[yellow]Git not found - will skip repository initialization[/yellow]"
-            )
+            console.print("[yellow]Git not found - will skip repository initialization[/yellow]")
 
     # AI assistant selection
     if ai_assistant:
@@ -955,9 +887,7 @@ def init(
         selected_ai = ai_assistant
     else:
         # Use arrow-key selection interface
-        selected_ai = select_with_arrows(
-            AI_CHOICES, "Choose your AI assistant:", "copilot"
-        )
+        selected_ai = select_with_arrows(AI_CHOICES, "Choose your AI assistant:", "copilot")
 
     # Check agent tools unless ignored
     if not ignore_agent_tools:
@@ -967,24 +897,16 @@ def init(
                 "claude",
                 "Install from: https://docs.anthropic.com/en/docs/claude-code/setup",
             ):
-                console.print(
-                    "[red]Error:[/red] Claude CLI is required for Claude Code projects"
-                )
+                console.print("[red]Error:[/red] Claude CLI is required for Claude Code projects")
                 agent_tool_missing = True
         elif selected_ai == "gemini":
-            if not check_tool(
-                "gemini", "Install from: https://github.com/google-gemini/gemini-cli"
-            ):
-                console.print(
-                    "[red]Error:[/red] Gemini CLI is required for Gemini projects"
-                )
+            if not check_tool("gemini", "Install from: https://github.com/google-gemini/gemini-cli"):
+                console.print("[red]Error:[/red] Gemini CLI is required for Gemini projects")
                 agent_tool_missing = True
 
         if agent_tool_missing:
             console.print("\n[red]Required AI tool is missing![/red]")
-            console.print(
-                "[yellow]Tip:[/yellow] Use --ignore-agent-tools to skip this check"
-            )
+            console.print("[yellow]Tip:[/yellow] Use --ignore-agent-tools to skip this check")
             raise typer.Exit(1)
 
     # Determine script type (explicit, interactive, or OS default)
@@ -1037,9 +959,7 @@ def init(
         tracker.add(key, label)
 
     # Use transient so live tree is replaced by the final static render (avoids duplicate output)
-    with Live(
-        tracker.render(), console=console, refresh_per_second=8, transient=True
-    ) as live:
+    with Live(tracker.render(), console=console, refresh_per_second=8, transient=True) as live:
         tracker.attach_refresh(lambda: live.update(tracker.render()))
         try:
             # Create a httpx client with verify based on skip_tls
@@ -1079,11 +999,7 @@ def init(
             tracker.complete("final", "project ready")
         except Exception as e:
             tracker.error("final", str(e))
-            console.print(
-                Panel(
-                    f"Initialization failed: {e}", title="Failure", border_style="red"
-                )
-            )
+            console.print(Panel(f"Initialization failed: {e}", title="Failure", border_style="red"))
             if debug:
                 _env_pairs = [
                     ("Python", sys.version.split()[0]),
@@ -1091,10 +1007,7 @@ def init(
                     ("CWD", str(Path.cwd())),
                 ]
                 _label_width = max(len(k) for k, _ in _env_pairs)
-                env_lines = [
-                    f"{k.ljust(_label_width)} → [bright_black]{v}[/bright_black]"
-                    for k, v in _env_pairs
-                ]
+                env_lines = [f"{k.ljust(_label_width)} → [bright_black]{v}[/bright_black]" for k, v in _env_pairs]
                 console.print(
                     Panel(
                         "\n".join(env_lines),
@@ -1123,9 +1036,7 @@ def init(
         step_num = 2
 
     if selected_ai == "claude":
-        steps_lines.append(
-            f"{step_num}. Open in Visual Studio Code and start using / commands with Claude Code"
-        )
+        steps_lines.append(f"{step_num}. Open in Visual Studio Code and start using / commands with Claude Code")
         steps_lines.append("   - Type / in any file to see available commands")
         steps_lines.append("   - Use /specify to create specifications")
         steps_lines.append("   - Use /plan to create implementation plans")
@@ -1147,9 +1058,7 @@ def init(
         f"{step_num}. Update [bold magenta]CONSTITUTION.md[/bold magenta] with your project's non-negotiable principles"
     )
 
-    steps_panel = Panel(
-        "\n".join(steps_lines), title="Next steps", border_style="cyan", padding=(1, 2)
-    )
+    steps_panel = Panel("\n".join(steps_lines), title="Next steps", border_style="cyan", padding=(1, 2))
     console.print()  # blank line
     console.print(steps_panel)
 
@@ -1174,18 +1083,12 @@ def check():
 
     # Check each tool
     git_ok = check_tool_for_tracker("git", "https://git-scm.com/downloads", tracker)
-    claude_ok = check_tool_for_tracker(
-        "claude", "https://docs.anthropic.com/en/docs/claude-code/setup", tracker
-    )
-    gemini_ok = check_tool_for_tracker(
-        "gemini", "https://github.com/google-gemini/gemini-cli", tracker
-    )
+    claude_ok = check_tool_for_tracker("claude", "https://docs.anthropic.com/en/docs/claude-code/setup", tracker)
+    gemini_ok = check_tool_for_tracker("gemini", "https://github.com/google-gemini/gemini-cli", tracker)
     # Check for VS Code (code or code-insiders)
     code_ok = check_tool_for_tracker("code", "https://code.visualstudio.com/", tracker)
     if not code_ok:
-        code_ok = check_tool_for_tracker(
-            "code-insiders", "https://code.visualstudio.com/insiders/", tracker
-        )
+        code_ok = check_tool_for_tracker("code-insiders", "https://code.visualstudio.com/insiders/", tracker)
     cursor_ok = check_tool_for_tracker("cursor-agent", "https://cursor.sh/", tracker)
 
     # Render the final tree
@@ -1199,6 +1102,29 @@ def check():
         console.print("[dim]Tip: Install git for repository management[/dim]")
     if not (claude_ok or gemini_ok):
         console.print("[dim]Tip: Install an AI assistant for the best experience[/dim]")
+
+
+def list_open_ports():
+    """List all open TCP/UDP ports and the processes using them (for debugging)."""
+    console.print("[yellow]Listing open ports and associated processes:[/yellow]")
+    conns = psutil.net_connections()
+    rows = []
+    for c in conns:
+        laddr = f"{c.laddr.ip}:{c.laddr.port}" if c.laddr else ""
+        raddr = f"{c.raddr.ip}:{c.raddr.port}" if c.raddr else ""
+        status = c.status
+        pid = c.pid
+        try:
+            proc = psutil.Process(pid) if pid else None
+            pname = proc.name() if proc else ""
+        except Exception:
+            pname = ""
+        rows.append((c.type, laddr, raddr, status, pid, pname))
+    table = Table("Type", "Local Address", "Remote Address", "Status", "PID", "Process")
+    for t, l, r, s, pid, pname in rows:
+        proto = "TCP" if t == socket.SOCK_STREAM else ("UDP" if t == socket.SOCK_DGRAM else str(t))
+        table.add_row(proto, l, r, s, str(pid) if pid else "", pname)
+    console.print(table)
 
 
 def main():
