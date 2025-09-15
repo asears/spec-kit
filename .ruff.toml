@@ -1,0 +1,9 @@
+preview = true
+target-version = "py311"
+line-length = 120
+indent-width = 4
+output-format = "concise"
+
+[lint]
+select = ["ALL"]
+ignore = ["COM812", "FURB", "BLE", "FBT"]
